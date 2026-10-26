@@ -27,7 +27,7 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
 
-  const inviteLink = `${location.origin}${location.pathname}?codigo=${encodeURIComponent(s.house.invite_code)}`;
+  const inviteLink = `${location.origin}${location.pathname}?codigo=${encodeURIComponent(s.house.invite_code ?? "")}`;
 
   function applyTheme(t: Theme) {
     setTheme(t);
@@ -100,23 +100,27 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
               </li>
             ))}
           </ul>
-          <p className="text-[14px] text-muted">
-            Para que alguien entre, pásale el enlace: lleva el código de la casa (<span className="font-medium text-ink">{s.house.invite_code}</span>).
-          </p>
-          <Button
-            variant="soft"
-            className="w-full"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(inviteLink);
-                s.toast("Enlace copiado");
-              } catch {
-                s.toast(inviteLink);
-              }
-            }}
-          >
-            <Copy size={16} /> Copiar enlace de invitación
-          </Button>
+          {s.house.registration_open && (
+            <>
+              <p className="text-[14px] text-muted">
+                Para que alguien entre, pásale el enlace: lleva el código de la casa (<span className="font-medium text-ink">{s.house.invite_code}</span>).
+              </p>
+              <Button
+                variant="soft"
+                className="w-full"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(inviteLink);
+                    s.toast("Enlace copiado");
+                  } catch {
+                    s.toast(inviteLink);
+                  }
+                }}
+              >
+                <Copy size={16} /> Copiar enlace de invitación
+              </Button>
+            </>
+          )}
         </section>
 
         <PushSetting />

@@ -22,6 +22,10 @@ La web y la API van en dominios distintos, así que la sesión es un JWT guardad
 
 Para registrarse hace falta el **código de la casa** (`INVITE_CODE`). Desde Perfil se copia un enlace de invitación que ya lo lleva.
 
+**El registro está cerrado** en producción (`nido_registration_open: false` en `ansible/playbooks/group_vars/all/nido.yaml`). Con el registro cerrado, la API rechaza las altas aunque traigan el código, y la web no enseña ni "Crear cuenta" ni el enlace de invitación. Para que entre alguien, se pone a `true`, se despliega y, cuando se haya registrado, se vuelve a cerrar.
+
+El nombre y el usuario no se cambian desde la app, solo en la base (tabla `users`).
+
 ## En local
 
 Hace falta el Postgres de Alpha (`alpha-pg`, colima, puerto 5433), con las bases `nido` y `nido_test`.

@@ -184,3 +184,20 @@ def test_name_cannot_be_changed_from_the_app(trio):
     assert res.status_code == 200
     assert res.json()["display_name"] == "Ana"
     assert res.json()["color"] == "#2F9E44"
+
+
+def test_closed_registration(trio, monkeypatch):
+    from nido.settings import settings
+
+    ana, _, _ = trio
+    monkeypatch.setattr(settings, "registration_open", False)
+    assert TestClient(app).get("/api/auth/options").json() == {"registration_open": False}
+    res = TestClient(app).post(
+        "/api/auth/register",
+        json={"invite_code": "codigo", "username": "dani", "display_name": "Dani", "password": "contraseña1"},
+    )
+    assert res.status_code == 403
+    house = ana.get("/api/house").json()
+    assert house["registration_open"] is False and house["invite_code"] is None
+    # Los que ya están siguen entrando.
+    assert TestClient(app).post("/api/auth/login", json={"username": "ana", "password": "contraseña1"}).status_code == 200

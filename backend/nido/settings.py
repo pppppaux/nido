@@ -21,6 +21,8 @@ class Settings:
         self.jwt_secret = _required("JWT_SECRET")
         # Código que hay que dar al registrarse: es lo que hace que solo entre la gente del piso.
         self.invite_code = _required("INVITE_CODE")
+        # Con false nadie más puede crear cuenta, ni con el código: la casa ya está completa.
+        self.registration_open = os.environ.get("REGISTRATION_OPEN", "true").lower() in ("1", "true", "yes")
         self.house_name = os.environ.get("HOUSE_NAME", "Nuestro piso").strip() or "Nuestro piso"
         # La web vive en otro dominio (GitHub Pages): solo esos orígenes pueden llamar a la API.
         self.allowed_origins = [

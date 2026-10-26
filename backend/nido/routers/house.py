@@ -19,8 +19,10 @@ def house(user: dict = Depends(current_user)):
         "name": settings.house_name,
         "members": members,
         "categories": CATEGORIES,
-        # Para invitar a alguien más desde la app sin tener que buscarlo.
-        "invite_code": settings.invite_code,
+        # Para invitar a alguien más desde la app sin tener que buscarlo. Con el registro
+        # cerrado no sirve para nada, así que ni se manda.
+        "registration_open": settings.registration_open,
+        "invite_code": settings.invite_code if settings.registration_open else None,
     }
 
 

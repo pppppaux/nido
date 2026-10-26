@@ -2,7 +2,13 @@ export type User = { id: number; username: string; display_name: string; color: 
 
 export type Category = { id: string; name: string };
 
-export type House = { name: string; members: User[]; categories: Category[]; invite_code: string };
+export type House = {
+  name: string;
+  members: User[];
+  categories: Category[];
+  registration_open: boolean;
+  invite_code: string | null;
+};
 
 export type Item = {
   id: number;

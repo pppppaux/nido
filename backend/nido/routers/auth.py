@@ -39,8 +39,16 @@ class PasswordIn(BaseModel):
     new: str = Field(min_length=8, max_length=200)
 
 
+@router.get("/options")
+def options():
+    """Sin sesión: lo que necesita la pantalla de entrada para saber si enseña el registro."""
+    return {"registration_open": settings.registration_open}
+
+
 @router.post("/register")
 def register(body: RegisterIn):
+    if not settings.registration_open:
+        raise HTTPException(403, "La casa está completa: ya no se pueden crear cuentas")
     if not hmac.compare_digest(body.invite_code.strip().encode(), settings.invite_code.encode()):
         raise HTTPException(403, "Ese código de casa no es el bueno")
     username = body.username.strip().lower()

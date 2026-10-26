@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "../lib/api";
 import type { User } from "../lib/types";
 import { Button, Field, inputCls } from "../components/ui";
@@ -13,6 +13,14 @@ export function AuthScreen({ onSession }: { onSession: (user: User, token: strin
   const [code, setCode] = useState(() => new URLSearchParams(location.search).get("codigo") ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Hasta saberlo, sin pestaña de registro: mejor que aparezca que verla desaparecer.
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+
+  useEffect(() => {
+    api<{ registration_open: boolean }>("/api/auth/options")
+      .then((o) => setRegistrationOpen(o.registration_open))
+      .catch(() => setRegistrationOpen(false));
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,22 +49,24 @@ export function AuthScreen({ onSession }: { onSession: (user: User, token: strin
         Lo que falta en casa, lo que hay y quién ha pagado qué. Entre todos.
       </p>
 
-      <div className="mb-5 flex rounded-full bg-surface p-1 shadow-card" role="tablist">
-        {(["login", "register"] as Mode[]).map((m) => (
-          <button
-            key={m}
-            role="tab"
-            aria-selected={mode === m}
-            onClick={() => {
-              setMode(m);
-              setError("");
-            }}
-            className={`flex-1 rounded-full py-2.5 text-[15px] font-medium transition ${mode === m ? "bg-ink text-paper" : "text-muted"}`}
-          >
-            {m === "login" ? "Entrar" : "Crear cuenta"}
-          </button>
-        ))}
-      </div>
+      {registrationOpen && (
+        <div className="mb-5 flex rounded-full bg-surface p-1 shadow-card" role="tablist">
+          {(["login", "register"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => {
+                setMode(m);
+                setError("");
+              }}
+              className={`flex-1 rounded-full py-2.5 text-[15px] font-medium transition ${mode === m ? "bg-ink text-paper" : "text-muted"}`}
+            >
+              {m === "login" ? "Entrar" : "Crear cuenta"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-3.5">
         {mode === "register" && (

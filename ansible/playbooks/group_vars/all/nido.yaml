@@ -5,6 +5,9 @@ nido_domain: "nido.alphaos.duckdns.org"
 # La web está en GitHub Pages: es el único origen al que la API contesta por CORS.
 nido_pages_origin: "https://pppppaux.github.io"
 nido_house_name: "Nuestro piso"
+# Cerrado desde 2026-10-26: ya están los del piso. Para que entre alguien nuevo, true y
+# desplegar (y luego false otra vez).
+nido_registration_open: false
 
 nido_user: "nido"
 nido_dir: "/opt/nido"
