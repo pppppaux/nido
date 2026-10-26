@@ -20,11 +20,15 @@
       become: false
       run_once: true
       changed_when: false
+      # COPYFILE_DISABLE: sin esto el tar de macOS añade "._<fichero>" con metadatos de
+      # Apple, y "._001_init.sql" se tomaba por una migración.
+      environment:
+        COPYFILE_DISABLE: "1"
       ansible.builtin.command:
         cmd: >
           tar -czf {{ playbook_dir }}/../.nido-backend.tgz
           --exclude=.venv --exclude=.env --exclude=.env.test --exclude=tests
-          --exclude=__pycache__ --exclude=.pytest_cache
+          --exclude=__pycache__ --exclude=.pytest_cache --exclude='._*' 
           -C {{ playbook_dir }}/../../backend .
 
   roles:

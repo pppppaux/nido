@@ -67,7 +67,9 @@ def run_migrations() -> None:
         cur.execute("SELECT name FROM schema_migrations")
         applied = {row["name"] for row in cur.fetchall()}
         for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
-            if path.name in applied:
+            # Fuera los ocultos: el tar de macOS mete "._001_init.sql" (metadatos de Apple),
+            # que no es SQL ni UTF-8.
+            if path.name.startswith(".") or path.name in applied:
                 continue
-            cur.execute(path.read_text())
+            cur.execute(path.read_text(encoding="utf-8"))
             cur.execute("INSERT INTO schema_migrations (name) VALUES (%s)", (path.name,))
