@@ -2,7 +2,7 @@ import hmac
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from nido.auth import check_password, current_user, hash_password, public_user, session
 from nido.db import bump, tx
@@ -28,8 +28,10 @@ class LoginIn(BaseModel):
 
 
 class ProfileIn(BaseModel):
-    display_name: str | None = Field(default=None, min_length=1, max_length=40)
-    color: str | None = None
+    # El nombre (y el usuario) solo se cambian en la base, a mano: desde la app, solo el
+    # color. forbid: mandar display_name da un 422 en vez de ignorarse sin decir nada.
+    model_config = ConfigDict(extra="forbid")
+    color: str
 
 
 class PasswordIn(BaseModel):
@@ -79,13 +81,13 @@ def me(user: dict = Depends(current_user)):
 
 @router.patch("/me")
 def update_me(body: ProfileIn, user: dict = Depends(current_user)):
-    if body.color is not None and not HEX_COLOR_RE.match(body.color):
+    if not HEX_COLOR_RE.match(body.color):
         raise HTTPException(422, "Color no válido")
     with tx() as cur:
         cur.execute(
-            "UPDATE users SET display_name = COALESCE(%s, display_name), color = COALESCE(%s, color)"
+            "UPDATE users SET color = %s"
             " WHERE id = %s RETURNING *",
-            (body.display_name.strip() if body.display_name else None, body.color, user["id"]),
+            (body.color, user["id"]),
         )
         updated = cur.fetchone()
         bump(cur)

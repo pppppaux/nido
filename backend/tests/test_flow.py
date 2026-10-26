@@ -174,3 +174,13 @@ def test_urgent_items_notify_everyone_else(trio, monkeypatch):
     assert sorted(uid for uid, _ in sent) == [ana.user["id"], bea.user["id"]]
     assert sent[0][1]["body"] == "Carlos avisa de que se ha acabado"
     push._vapid.cache_clear()
+
+
+def test_name_cannot_be_changed_from_the_app(trio):
+    ana, _, _ = trio
+    res = ana.patch("/api/auth/me", json={"display_name": "Otra", "color": "#2F9E44"})
+    assert res.status_code == 422
+    res = ana.patch("/api/auth/me", json={"color": "#2F9E44"})
+    assert res.status_code == 200
+    assert res.json()["display_name"] == "Ana"
+    assert res.json()["color"] == "#2F9E44"

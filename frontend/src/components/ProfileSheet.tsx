@@ -22,7 +22,6 @@ function readTheme(): Theme {
 
 export function ProfileSheet({ onClose }: { onClose: () => void }) {
   const s = useStore();
-  const [name, setName] = useState(s.me.display_name);
   const [color, setColor] = useState(s.me.color);
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [current, setCurrent] = useState("");
@@ -43,10 +42,10 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
   }
 
   async function saveProfile() {
-    const user = await s.run(() => api<User>("/api/auth/me", { method: "PATCH", body: { display_name: name, color } }));
+    const user = await s.run(() => api<User>("/api/auth/me", { method: "PATCH", body: { color } }));
     if (user) {
       s.setMe(user);
-      s.toast("Perfil guardado");
+      s.toast("Color guardado");
     }
   }
 
@@ -65,15 +64,12 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
       <div className="space-y-7">
         <section className="space-y-4">
           <div className="flex items-center gap-3">
-            <Avatar user={{ ...s.me, display_name: name || s.me.display_name, color }} size={52} />
+            <Avatar user={{ ...s.me, color }} size={52} />
             <div className="min-w-0">
-              <p className="truncate text-[18px] font-semibold">{name || s.me.display_name}</p>
+              <p className="truncate text-[18px] font-semibold">{s.me.display_name}</p>
               <p className="text-[14px] text-muted">@{s.me.username}</p>
             </div>
           </div>
-          <Field label="Nombre">
-            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
-          </Field>
           <Field label="Tu color">
             <div className="flex flex-wrap gap-2.5">
               {PALETTE.map((c) => (
@@ -89,8 +85,8 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           </Field>
-          <Button variant="soft" className="w-full" onClick={saveProfile} disabled={!name.trim()}>
-            Guardar perfil
+          <Button variant="soft" className="w-full" onClick={saveProfile} disabled={color === s.me.color}>
+            Guardar color
           </Button>
         </section>
 
