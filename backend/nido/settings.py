@@ -32,6 +32,11 @@ class Settings:
         # Clave privada VAPID (base64url, 32 bytes) para los avisos push. Opcional: sin ella
         # los avisos están apagados.
         self.vapid_private_key = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+        # IA para leer tickets: el mismo proveedor y la misma clave que Alpha (DigitalOcean).
+        # Sin clave, la lectura de tickets no aparece.
+        self.do_api_key = os.environ.get("DO_API_KEY", "").strip()
+        self.do_model = os.environ.get("DO_MODEL", "").strip()
+        self.do_api_url = os.environ.get("DO_API_URL", "https://inference.do-ai.run/v1").strip()
 
 
 settings = Settings()

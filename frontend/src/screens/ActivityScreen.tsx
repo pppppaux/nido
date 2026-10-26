@@ -35,6 +35,12 @@ export function ActivityScreen() {
         return `${who} ${mine ? "añadiste" : "añadió"} el gasto ${a.subject} (${money(d.amount_cents as number)})`;
       case "expense_deleted":
         return `${who} ${mine ? "borraste" : "borró"} el gasto ${a.subject}`;
+      case "receipt": {
+        const n = d.count as number;
+        return `${who} ${mine ? "subiste" : "subió"} un ticket${a.subject !== "Ticket" ? ` de ${a.subject}` : ""}: ${n} ${
+          n === 1 ? "compra" : "compras"
+        } por ${money(d.total_cents as number)}`;
+      }
       case "settlement": {
         const from = d.from_user_id === s.me.id ? "ti" : s.member(d.from_user_id as number)?.display_name;
         const to = d.to_user_id === s.me.id ? "ti" : s.member(d.to_user_id as number)?.display_name;

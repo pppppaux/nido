@@ -26,6 +26,10 @@ nido_jwt_secret: "{{ vault_nido_jwt_secret }}"
 nido_invite_code: "{{ vault_nido_invite_code }}"
 # Avisos push (Web Push). La pública la saca la API de esta y la sirve en /api/push/key.
 nido_vapid_private_key: "{{ vault_nido_vapid_private_key }}"
+# Lectura de tickets: la misma IA (DigitalOcean) y la misma clave que Alpha.
+nido_do_api_key: "{{ vault_do_api_key }}"
+nido_do_model: "{{ vault_do_model }}"
+nido_do_api_url: "{{ vault_do_api_url }}"
 
 # Hooks de certbot propios: los de Alpha mandan a DuckDNS todo lo que va antes de
 # .duckdns.org ("nido.alphaos"), y el TXT solo se puede poner en el subdominio de la

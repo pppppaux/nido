@@ -32,7 +32,9 @@ export const tokenStore = {
 
 export async function api<T = unknown>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = {};
-  if (init.body !== undefined) headers["Content-Type"] = "application/json";
+  // FormData (fotos) lleva su propio Content-Type con el boundary: no hay que ponerlo.
+  const isForm = init.body instanceof FormData;
+  if (init.body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   const token = tokenStore.get();
   if (token) headers.Authorization = `Bearer ${token}`;
   let res: Response;
@@ -40,7 +42,7 @@ export async function api<T = unknown>(path: string, init: { method?: string; bo
     res = await fetch(API_URL + path, {
       method: init.method ?? (init.body === undefined ? "GET" : "POST"),
       headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: init.body === undefined ? undefined : isForm ? (init.body as FormData) : JSON.stringify(init.body),
     });
   } catch {
     throw new ApiError(0, "Sin conexión. Inténtalo otra vez en un momento.");

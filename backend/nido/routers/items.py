@@ -187,25 +187,33 @@ def delete_item(item_id: int, user: dict = Depends(current_user)):
     return {"ok": True}
 
 
+def mark_bought(cur: psycopg.Cursor, item: dict, user_id: int, price_cents: int | None) -> dict:
+    """Lo tacha como comprado por user_id, devuelve su entrada del inventario a "hay" y, con
+    precio, lo pasa a las cuentas. No escribe en el feed: eso lo decide quien llama (una
+    compra suelta es una línea; un ticket entero, otra)."""
+    cur.execute(
+        "UPDATE items SET bought_by = %s, bought_at = now(), urgent = false WHERE id = %s RETURNING *",
+        (user_id, item["id"]),
+    )
+    item = cur.fetchone()
+    # Lo comprado vuelve a haber en casa: su entrada del inventario pasa a "hay".
+    cur.execute(
+        "UPDATE pantry SET level = 'ok', updated_by = %s, updated_at = now()"
+        " WHERE level <> 'ok' AND (id = %s OR (lower(name) = lower(%s) AND owner_id IS NOT DISTINCT FROM %s))",
+        (user_id, item["pantry_id"], item["name"], item["owner_id"]),
+    )
+    if price_cents is not None:
+        item = apply_price(cur, item, price_cents, user_id)
+    return item
+
+
 @router.post("/{item_id}/buy")
 def buy_item(item_id: int, body: PriceIn, user: dict = Depends(current_user)):
     with tx() as cur:
         item = get_item(cur, item_id)
         if item["bought_at"] is not None:
             return item
-        cur.execute(
-            "UPDATE items SET bought_by = %s, bought_at = now(), urgent = false WHERE id = %s RETURNING *",
-            (user["id"], item_id),
-        )
-        item = cur.fetchone()
-        # Lo comprado vuelve a haber en casa: su entrada del inventario pasa a "hay".
-        cur.execute(
-            "UPDATE pantry SET level = 'ok', updated_by = %s, updated_at = now()"
-            " WHERE level <> 'ok' AND (id = %s OR (lower(name) = lower(%s) AND owner_id IS NOT DISTINCT FROM %s))",
-            (user["id"], item["pantry_id"], item["name"], item["owner_id"]),
-        )
-        if body.price_cents is not None:
-            item = apply_price(cur, item, body.price_cents, user["id"])
+        item = mark_bought(cur, item, user["id"], body.price_cents)
         log(cur, user["id"], "bought", item["name"], item_id=item_id, owner_id=item["owner_id"],
             price_cents=item["price_cents"])
         bump(cur)

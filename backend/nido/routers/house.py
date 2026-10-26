@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
+from nido import ai
 from nido.auth import current_user, public_user
 from nido.categories import CATEGORIES
 from nido.db import tx
@@ -22,6 +23,7 @@ def house(user: dict = Depends(current_user)):
         # Para invitar a alguien más desde la app sin tener que buscarlo. Con el registro
         # cerrado no sirve para nada, así que ni se manda.
         "registration_open": settings.registration_open,
+        "receipts_enabled": ai.enabled(),
         "invite_code": settings.invite_code if settings.registration_open else None,
     }
 

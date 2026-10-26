@@ -7,6 +7,7 @@ export type House = {
   members: User[];
   categories: Category[];
   registration_open: boolean;
+  receipts_enabled: boolean;
   invite_code: string | null;
 };
 
@@ -68,3 +69,20 @@ export type Activity = {
 };
 
 export type Suggestion = { name: string; category: string };
+
+export type ReceiptLine = {
+  name: string;
+  quantity: string;
+  price_cents: number;
+  item_id: number | null;
+  owner_id: number | null;
+  category: string;
+};
+
+export type ReceiptDraft = {
+  store: string | null;
+  date: string | null;
+  total_cents: number | null;
+  sum_cents: number;
+  lines: ReceiptLine[];
+};

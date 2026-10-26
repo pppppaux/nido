@@ -18,6 +18,7 @@ import {
   Sheet,
 } from "../components/ui";
 import { PushPrompt } from "../components/PushControl";
+import { ReceiptButton } from "../components/ReceiptFlow";
 
 type Filter = "all" | "house" | "mine" | "others";
 
@@ -77,16 +78,21 @@ export function ListScreen() {
 
       <PushPrompt />
 
-      <Chips
-        value={filter}
-        onChange={setFilter}
-        options={[
-          { id: "all", label: "Todo", count: count("all") },
-          { id: "house", label: "Casa", count: count("house") },
-          { id: "mine", label: "Lo mío", count: count("mine") },
-          { id: "others", label: "De otros", count: count("others") },
-        ]}
-      />
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <Chips
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { id: "all", label: "Todo", count: count("all") },
+              { id: "house", label: "Casa", count: count("house") },
+              { id: "mine", label: "Lo mío", count: count("mine") },
+              { id: "others", label: "De otros", count: count("others") },
+            ]}
+          />
+        </div>
+        <ReceiptButton />
+      </div>
 
       {groups.length === 0 ? (
         <Empty title={pending.length === 0 ? "No falta nada" : "Aquí no hay nada"}>

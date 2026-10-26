@@ -198,7 +198,7 @@ export function Chips<T extends string>({
   options: { id: T; label: string; count?: number }[];
 }) {
   return (
-    <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+    <div className="-ml-4 flex gap-1.5 overflow-x-auto pr-1 pl-4 pb-1 [scrollbar-width:none]">
       {options.map((o) => {
         const active = o.id === value;
         return (

@@ -201,3 +201,86 @@ def test_closed_registration(trio, monkeypatch):
     assert house["registration_open"] is False and house["invite_code"] is None
     # Los que ya están siguen entrando.
     assert TestClient(app).post("/api/auth/login", json={"username": "ana", "password": "contraseña1"}).status_code == 200
+
+
+def test_receipt_is_read_then_confirmed_after_review(trio, monkeypatch):
+    import json as _json
+
+    from nido import ai
+    from nido.settings import settings
+
+    ana, bea, carlos = trio
+    leche = ana.post("/api/items", json={"name": "Leche"}).json()["item"]
+    yogur = bea.post("/api/items", json={"name": "Yogur de coco", "owner_id": bea.user["id"]}).json()["item"]
+    entry = ana.post("/api/pantry", json={"name": "Papel higiénico", "level": "out"}).json()
+
+    monkeypatch.setattr(settings, "do_api_key", "k")
+    monkeypatch.setattr(settings, "do_model", "m")
+    seen = {}
+
+    def fake(prompt, media_type, data):
+        seen["prompt"] = prompt
+        return "Aquí está:\n```json\n" + _json.dumps({
+            "store": "Mercadona", "date": "2026-10-26", "total": 9.40,
+            "lines": [
+                {"name": "leche semidesnatada", "qty": "6 ud", "price": 5.34, "match": leche["id"]},
+                {"name": "Yogur de coco", "price": "1,99", "match": yogur["id"]},
+                {"name": "Chocolate", "price": 2.07, "match": 99999},
+                {"name": "Descuento", "price": -0.5, "match": None},
+            ],
+        }) + "\n```"
+
+    monkeypatch.setattr(ai, "_complete_with_image", fake)
+    res = carlos.post("/api/receipts/read", files={"photo": ("t.jpg", b"fake", "image/jpeg")})
+    assert res.status_code == 200, res.text
+    draft = res.json()
+    assert f"{leche['id']}: Leche" in seen["prompt"]
+    assert draft["store"] == "Mercadona" and draft["total_cents"] == 940
+    # Un id que no está en la lista no se casa con nada, y el descuento suelto no entra.
+    assert [(l["name"], l["price_cents"], l["item_id"]) for l in draft["lines"]] == [
+        ("Leche semidesnatada", 534, leche["id"]),
+        ("Yogur de coco", 199, yogur["id"]),
+        ("Chocolate", 207, None),
+    ]
+    assert draft["lines"][1]["owner_id"] == bea.user["id"]
+    # Leer no guarda nada.
+    assert len(carlos.get("/api/items").json()["pending"]) == 3
+
+    # Carlos quita el chocolate (es suyo) y añade el papel, que la IA no casó.
+    lines = draft["lines"][:2] + [{"name": "Papel higiénico", "price_cents": 300, "item_id": None, "owner_id": None}]
+    res = carlos.post("/api/receipts/confirm", json={"store": draft["store"], "lines": lines})
+    assert res.status_code == 200, res.text
+    # El papel no venía casado, pero estaba pendiente con el mismo nombre: es ese.
+    assert res.json() == {"count": 3, "matched": 3, "total_cents": 1033}
+
+    items = carlos.get("/api/items").json()
+    assert items["pending"] == []
+    assert {i["name"] for i in items["bought"]} == {"Leche", "Yogur de coco", "Papel higiénico"}
+    assert all(i["bought_by"] == carlos.user["id"] for i in items["bought"])
+    pantry = carlos.get("/api/pantry").json()
+    assert pantry[0]["id"] == entry["id"] and pantry[0]["level"] == "ok"
+
+    # Algo que no estaba en la lista entra como compra nueva, ya comprada.
+    carlos.post("/api/receipts/confirm", json={"lines": [{"name": "Pilas", "price_cents": 450, "owner_id": None}]})
+    assert carlos.get("/api/items").json()["bought"][0]["name"] == "Pilas"
+
+    money = carlos.get("/api/money").json()
+    bal = {b["user_id"]: b["balance_cents"] for b in money["balances"]}
+    # Leche 5,34 + papel 3,00 + pilas 4,50 entre los tres (12,84 → 4,28 cada uno); el
+    # yogur es de Bea.
+    assert bal[bea.user["id"]] == -428 - 199
+    assert bal[ana.user["id"]] == -428
+    assert bal[carlos.user["id"]] == 1284 - 428 + 199
+    feed = carlos.get("/api/activity").json()
+    # Una línea por ticket en el feed: el de las pilas y, antes, el del súper.
+    assert [(a["kind"], a["detail"].get("count")) for a in feed[:2]] == [("receipt", 1), ("receipt", 3)]
+
+
+def test_receipt_reading_off_without_ai_key(trio, monkeypatch):
+    from nido.settings import settings
+
+    ana, _, _ = trio
+    monkeypatch.setattr(settings, "do_api_key", "")
+    assert ana.get("/api/house").json()["receipts_enabled"] is False
+    res = ana.post("/api/receipts/read", files={"photo": ("t.jpg", b"x", "image/jpeg")})
+    assert res.status_code == 503

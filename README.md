@@ -5,6 +5,7 @@ La app del piso: lo que falta en casa (común o de cada uno), lo que hay, y qui�
 - **Lista**: se apunta lo que falta, para la casa o para alguien. Quien lo compra lo tacha y, si quiere, pone el precio. Lo común se reparte entre todos; lo de otro, se lo debe a quien lo compró.
 - **Casa**: inventario con tres niveles: hay, poco o nada. Marcar «poco» o «nada» lo apunta solo en la lista, y comprarlo lo devuelve a «hay».
 - **Cuentas**: saldo de cada uno, los pagos mínimos para quedar en paz, gastos sueltos (luz, internet…) y pagos entre compañeros.
+- **Ticket**: haces una foto al ticket y la IA saca las líneas y los precios, y casa cada una con lo pendiente de la lista. No se apunta nada hasta que lo revisas: puedes quitar lo que es solo tuyo, cambiar para quién es cada cosa, corregir precios y añadir líneas que falten. Al confirmar, lo que estaba en la lista se tacha; lo demás entra como compra nueva. Todo pasa a las cuentas.
 - **Actividad**: lo que ha hecho cada uno.
 
 Se refresca sola: cada 6 s mira `/api/pulse` y solo recarga si algo ha cambiado. Se puede instalar en el móvil («Añadir a pantalla de inicio»).
@@ -64,3 +65,4 @@ Los secretos están en el vault de Alpha (`vault_nido_jwt_secret`, `vault_nido_i
 - **WAF**: el dominio de Nido está exento del token `X-Alpha-Client` de Alpha (`modsecurity_client_token_exempt_hosts` en los group_vars de Alpha). Sigue pasando por el CRS y por los límites de nginx, y el login y el registro tienen el límite de credenciales (`/api/auth/(login|register|password)`).
 - **Copias**: el `pg_dump` diario de Alpha solo copia la base `alpha`. De `nido` solo queda el historial de Neon.
 - **Un solo piso por despliegue**: toda la gente registrada comparte lo mismo.
+- **IA de los tickets**: usa el mismo proveedor y la misma clave que Alpha (DigitalOcean, `vault_do_*`), por la ruta `/messages`, porque `/chat/completions` rechaza imágenes. La foto no se guarda en ningún sitio y va al modelo sin ofuscar (un ticket del súper no lleva datos personales; el prompt prohíbe copiar tarjeta o socio). Cada lectura cuesta unos céntimos.
