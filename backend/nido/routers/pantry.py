@@ -3,9 +3,10 @@ lista; comprarlo desde la lista lo devuelve a "hay" (routers/items.py, buy_item)
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from nido import push
 from nido.auth import current_user
 from nido.db import bump, tx
 from nido.house import log
@@ -30,19 +31,23 @@ class PantryPatch(BaseModel):
     level: Level | None = None
 
 
-def sync_with_list(cur, entry: dict, user_id: int) -> None:
+def sync_with_list(cur, entry: dict, user_id: int) -> int | None:
     """Pone la lista de acuerdo con el nivel: si falta, que esté apuntado; si vuelve a
-    haber, se quita lo que se apuntó desde aquí y nadie ha comprado todavía."""
+    haber, se quita lo que se apuntó desde aquí y nadie ha comprado todavía.
+
+    Devuelve el id del elemento de la lista si acaba de pasar a urgente ("se acabó"), para
+    el aviso push."""
     if entry["level"] in ("low", "out"):
-        add_item(
+        item, _, became_urgent = add_item(
             cur,
             user_id,
             ItemIn(name=entry["name"], category=entry["category"], owner_id=entry["owner_id"],
                    urgent=entry["level"] == "out"),
             pantry_id=entry["id"],
         )
-    else:
-        cur.execute("DELETE FROM items WHERE pantry_id = %s AND bought_at IS NULL", (entry["id"],))
+        return item["id"] if became_urgent else None
+    cur.execute("DELETE FROM items WHERE pantry_id = %s AND bought_at IS NULL", (entry["id"],))
+    return None
 
 
 @router.get("")
@@ -53,7 +58,7 @@ def list_pantry(user: dict = Depends(current_user)):
 
 
 @router.post("")
-def create_entry(body: PantryIn, user: dict = Depends(current_user)):
+def create_entry(body: PantryIn, background: BackgroundTasks, user: dict = Depends(current_user)):
     check_category(body.category)
     name = body.name.strip()
     with tx() as cur:
@@ -70,14 +75,15 @@ def create_entry(body: PantryIn, user: dict = Depends(current_user)):
             (name, body.category or guess_category(cur, name), body.owner_id, body.level, user["id"]),
         )
         entry = cur.fetchone()
-        if entry["level"] != "ok":
-            sync_with_list(cur, entry, user["id"])
+        urgent_id = sync_with_list(cur, entry, user["id"]) if entry["level"] != "ok" else None
         bump(cur)
+    if urgent_id:
+        background.add_task(push.notify_urgent, urgent_id, user["id"], "out")
     return entry
 
 
 @router.patch("/{entry_id}")
-def update_entry(entry_id: int, body: PantryPatch, user: dict = Depends(current_user)):
+def update_entry(entry_id: int, body: PantryPatch, background: BackgroundTasks, user: dict = Depends(current_user)):
     check_category(body.category)
     fields = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None or k == "owner_id"}
     with tx() as cur:
@@ -96,11 +102,14 @@ def update_entry(entry_id: int, body: PantryPatch, user: dict = Depends(current_
             (*values, user["id"], entry_id),
         )
         entry = cur.fetchone()
+        urgent_id = None
         if entry["level"] != before["level"]:
-            sync_with_list(cur, entry, user["id"])
+            urgent_id = sync_with_list(cur, entry, user["id"])
             if entry["level"] != "ok":
                 log(cur, user["id"], f"pantry_{entry['level']}", entry["name"], owner_id=entry["owner_id"])
         bump(cur)
+    if urgent_id:
+        background.add_task(push.notify_urgent, urgent_id, user["id"], "out")
     return entry
 
 

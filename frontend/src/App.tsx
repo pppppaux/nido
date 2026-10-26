@@ -5,6 +5,7 @@ import { StoreProvider, useStore } from "./lib/store";
 import type { User } from "./lib/types";
 import { Avatar, Button } from "./components/ui";
 import { ProfileSheet } from "./components/ProfileSheet";
+import { syncPush } from "./lib/push";
 import { AuthScreen } from "./screens/AuthScreen";
 import { ListScreen } from "./screens/ListScreen";
 import { PantryScreen } from "./screens/PantryScreen";
@@ -99,6 +100,10 @@ function Shell() {
   const s = useStore();
   const [tab, setTab] = useState<Tab>(readTab);
   const [profile, setProfile] = useState(false);
+
+  useEffect(() => {
+    syncPush();
+  }, []);
 
   useEffect(() => {
     const onHash = () => setTab(readTab());

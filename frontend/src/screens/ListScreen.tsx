@@ -17,6 +17,7 @@ import {
   OwnerTag,
   Sheet,
 } from "../components/ui";
+import { PushPrompt } from "../components/PushControl";
 
 type Filter = "all" | "house" | "mine" | "others";
 
@@ -73,6 +74,8 @@ export function ListScreen() {
           )}
         </p>
       </div>
+
+      <PushPrompt />
 
       <Chips
         value={filter}

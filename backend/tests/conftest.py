@@ -21,7 +21,7 @@ def clean_db():
     run_migrations()
     with tx() as cur:
         cur.execute(
-            "TRUNCATE activity, expense_shares, expenses, items, pantry, users RESTART IDENTITY CASCADE"
+            "TRUNCATE push_subscriptions, activity, expense_shares, expenses, items, pantry, users RESTART IDENTITY CASCADE"
         )
     yield
 

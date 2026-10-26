@@ -3,6 +3,8 @@ import { Copy, LogOut } from "lucide-react";
 import { api, tokenStore } from "../lib/api";
 import { useStore } from "../lib/store";
 import type { User } from "../lib/types";
+import { disablePush } from "../lib/push";
+import { PushSetting } from "./PushControl";
 import { Avatar, Button, Field, inputCls, Sheet } from "./ui";
 
 const PALETTE = ["#4C6EF5", "#E8590C", "#2F9E44", "#AE3EC9", "#F08C00", "#0C8599", "#E03131", "#5C7CFA"];
@@ -121,6 +123,8 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
           </Button>
         </section>
 
+        <PushSetting />
+
         <section className="space-y-3 border-t border-line pt-6">
           <h3 className="text-[16px] font-semibold">Apariencia</h3>
           <div className="flex rounded-full bg-surface-2 p-1">
@@ -152,7 +156,15 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
           </Button>
         </section>
 
-        <Button variant="danger" className="w-full" onClick={s.logout}>
+        <Button
+          variant="danger"
+          className="w-full"
+          onClick={async () => {
+            // Este dispositivo deja de recibir avisos de esta cuenta.
+            await disablePush().catch(() => undefined);
+            s.logout();
+          }}
+        >
           <LogOut size={17} /> Cerrar sesión
         </Button>
       </div>

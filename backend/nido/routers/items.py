@@ -1,9 +1,10 @@
 """La lista de la compra."""
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from nido import push
 from nido.auth import current_user
 from nido.categories import CATEGORY_IDS, guess_from_keywords
 from nido.db import bump, tx
@@ -68,9 +69,13 @@ def get_item(cur: psycopg.Cursor, item_id: int) -> dict:
     return item
 
 
-def add_item(cur: psycopg.Cursor, user_id: int, body: ItemIn, pantry_id: int | None = None) -> tuple[dict, bool]:
+def add_item(
+    cur: psycopg.Cursor, user_id: int, body: ItemIn, pantry_id: int | None = None
+) -> tuple[dict, bool, bool]:
     """Apunta algo en la lista. Si ya estaba pendiente (mismo nombre y mismo dueño), no
-    lo duplica: devuelve el que había, y si ahora corre prisa, lo marca urgente."""
+    lo duplica: devuelve el que había, y si ahora corre prisa, lo marca urgente.
+
+    Devuelve (elemento, ya estaba, acaba de pasar a urgente): lo último decide el aviso push."""
     name = body.name.strip()
     cur.execute(
         ITEM_SELECT + " WHERE bought_at IS NULL AND lower(name) = lower(%s)"
@@ -83,7 +88,8 @@ def add_item(cur: psycopg.Cursor, user_id: int, body: ItemIn, pantry_id: int | N
             cur.execute("UPDATE items SET urgent = true WHERE id = %s RETURNING *", (existing["id"],))
             existing = cur.fetchone()
             bump(cur)
-        return existing, True
+            return existing, True, True
+        return existing, True, False
     category = body.category or guess_category(cur, name)
     cur.execute(
         "INSERT INTO items (name, quantity, note, category, owner_id, urgent, pantry_id, created_by)"
@@ -93,7 +99,7 @@ def add_item(cur: psycopg.Cursor, user_id: int, body: ItemIn, pantry_id: int | N
     item = cur.fetchone()
     log(cur, user_id, "added", name, item_id=item["id"], owner_id=body.owner_id, urgent=body.urgent)
     bump(cur)
-    return item, False
+    return item, False, body.urgent
 
 
 def apply_price(cur: psycopg.Cursor, item: dict, price_cents: int | None, user_id: int) -> dict:
@@ -133,22 +139,25 @@ def list_items(user: dict = Depends(current_user)):
 
 
 @router.post("")
-def create_item(body: ItemIn, user: dict = Depends(current_user)):
+def create_item(body: ItemIn, background: BackgroundTasks, user: dict = Depends(current_user)):
     check_category(body.category)
     with tx() as cur:
         check_owner(cur, body.owner_id)
-        item, duplicate = add_item(cur, user["id"], body)
+        item, duplicate, became_urgent = add_item(cur, user["id"], body)
+    if became_urgent:
+        background.add_task(push.notify_urgent, item["id"], user["id"], "urgent")
     return {"item": item, "duplicate": duplicate}
 
 
 @router.patch("/{item_id}")
-def update_item(item_id: int, body: ItemPatch, user: dict = Depends(current_user)):
+def update_item(item_id: int, body: ItemPatch, background: BackgroundTasks, user: dict = Depends(current_user)):
     check_category(body.category)
     fields = body.model_dump(exclude_unset=True)
     # Solo owner_id admite null (= pasa a común); en el resto null es "no lo toco".
     fields = {k: v for k, v in fields.items() if v is not None or k == "owner_id"}
     with tx() as cur:
         item = get_item(cur, item_id)
+        was_urgent = item["urgent"]
         if "owner_id" in fields:
             check_owner(cur, fields["owner_id"])
         if not fields:
@@ -161,6 +170,8 @@ def update_item(item_id: int, body: ItemPatch, user: dict = Depends(current_user
             # Cambia quién paga qué: el gasto se rehace con el mismo precio.
             item = apply_price(cur, item, item["price_cents"], user["id"])
         bump(cur)
+    if item["urgent"] and not was_urgent and item["bought_at"] is None:
+        background.add_task(push.notify_urgent, item_id, user["id"], "urgent")
     return item
 
 

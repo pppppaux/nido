@@ -27,6 +27,9 @@ class Settings:
             o.strip().rstrip("/") for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
         ]
         self.session_days = int(os.environ.get("SESSION_DAYS", "180"))
+        # Clave privada VAPID (base64url, 32 bytes) para los avisos push. Opcional: sin ella
+        # los avisos están apagados.
+        self.vapid_private_key = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
 
 
 settings = Settings()

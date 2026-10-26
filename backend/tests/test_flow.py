@@ -123,3 +123,54 @@ def test_helpers():
     assert guess_from_keywords("Tomates") == "fresco"
     assert guess_from_keywords("Turrón") == "otros"
     assert guess_from_keywords("Papel de cocina") == "limpieza"
+
+
+def test_urgent_items_notify_everyone_else(trio, monkeypatch):
+    from cryptography.hazmat.primitives.asymmetric import ec
+    import base64
+
+    from nido import push
+    from nido.settings import settings
+
+    raw = ec.generate_private_key(ec.SECP256R1()).private_numbers().private_value.to_bytes(32, "big")
+    monkeypatch.setattr(settings, "vapid_private_key", base64.urlsafe_b64encode(raw).rstrip(b"=").decode())
+    push._vapid.cache_clear()
+    sent = []
+    # El último que se suscribe "no existe ya": el servicio de push contestaría 410.
+    monkeypatch.setattr(push, "_send", lambda sub, payload: sent.append((sub["user_id"], payload)) or sub["endpoint"] != "https://push/carlos")
+
+    ana, bea, carlos = trio
+    assert len(ana.get("/api/push/key").json()["key"]) == 87
+    for client, name in ((ana, "ana"), (bea, "bea"), (carlos, "carlos")):
+        res = client.post("/api/push/subscribe", json={"endpoint": f"https://push/{name}", "keys": {"p256dh": "k", "auth": "a"}})
+        assert res.status_code == 200
+
+    ana.post("/api/items", json={"name": "Leche"})
+    assert sent == []
+
+    ana.post("/api/items", json={"name": "Papel higiénico", "urgent": True})
+    assert sorted(uid for uid, _ in sent) == [bea.user["id"], carlos.user["id"]]
+    assert sent[0][1]["title"] == "Papel higiénico"
+    assert sent[0][1]["body"] == "Ana lo ha apuntado como urgente"
+
+    # La suscripción caducada de Carlos se ha borrado: el siguiente aviso solo va a Bea.
+    sent.clear()
+    item = bea.post("/api/items", json={"name": "Leche", "urgent": True}).json()["item"]
+    assert [uid for uid, _ in sent] == [ana.user["id"]]
+
+    # Marcarlo urgente otra vez no vuelve a avisar; quitarle la prisa y ponérsela, sí.
+    sent.clear()
+    bea.patch(f"/api/items/{item['id']}", json={"urgent": True})
+    assert sent == []
+    bea.patch(f"/api/items/{item['id']}", json={"urgent": False})
+    bea.patch(f"/api/items/{item['id']}", json={"urgent": True})
+    assert [uid for uid, _ in sent] == [ana.user["id"]]
+
+    sent.clear()
+    entry = carlos.post("/api/pantry", json={"name": "Aceite"}).json()
+    carlos.patch(f"/api/pantry/{entry['id']}", json={"level": "low"})
+    assert sent == []
+    carlos.patch(f"/api/pantry/{entry['id']}", json={"level": "out"})
+    assert sorted(uid for uid, _ in sent) == [ana.user["id"], bea.user["id"]]
+    assert sent[0][1]["body"] == "Carlos avisa de que se ha acabado"
+    push._vapid.cache_clear()

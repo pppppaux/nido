@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import PlainTextResponse
 
 from nido.db import close_pool, run_migrations, tx
-from nido.routers import auth, house, items, money, pantry
+from nido.routers import auth, house, items, money, pantry, push
 from nido.settings import settings
 
 
@@ -28,7 +28,7 @@ app.add_middleware(
     max_age=86400,
 )
 
-for module in (auth, house, items, pantry, money):
+for module in (auth, house, items, pantry, money, push):
     app.include_router(module.router)
 
 
