@@ -1,0 +1,28 @@
+# Variables de Nido. Las comunes (IP, usuario ssh, duckdns_dir, el token de DuckDNS, la URL
+# de Neon…) llegan de los group_vars de Alpha, que se cargan con su inventario.
+
+nido_domain: "nido.alphaos.duckdns.org"
+# La web está en GitHub Pages: es el único origen al que la API contesta por CORS.
+nido_pages_origin: "https://pppppaux.github.io"
+nido_house_name: "Nuestro piso"
+
+nido_user: "nido"
+nido_dir: "/opt/nido"
+nido_app_dir: "{{ nido_dir }}/app"
+nido_venv: "{{ nido_dir }}/venv"
+nido_service_name: "nido.service"
+# Alpha está en el 8000. Los dos solo escuchan en 127.0.0.1: nginx es la única puerta.
+nido_port: 8100
+
+# Otra base en el mismo proyecto de Neon (mismo usuario y mismo host que la de Alpha).
+nido_db_name: "nido"
+nido_database_url: "{{ vault_database_url | regex_replace('/alpha\\?', '/' ~ nido_db_name ~ '?') }}"
+nido_database_direct_url: "{{ vault_database_direct_url | regex_replace('/alpha\\?', '/' ~ nido_db_name ~ '?') }}"
+
+nido_jwt_secret: "{{ vault_nido_jwt_secret }}"
+nido_invite_code: "{{ vault_nido_invite_code }}"
+
+# Hooks de certbot propios: los de Alpha mandan a DuckDNS todo lo que va antes de
+# .duckdns.org ("nido.alphaos"), y el TXT solo se puede poner en el subdominio de la
+# cuenta ("alphaos"), que DuckDNS contesta también para nido.alphaos.
+nido_duckdns_hooks_dir: /etc/letsencrypt/duckdns-nido

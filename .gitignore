@@ -1,0 +1,8 @@
+.DS_Store
+backend/.venv
+backend/.env
+backend/.env.test
+__pycache__
+.pytest_cache
+ansible/.facts_cache
+ansible/.nido-backend.tgz

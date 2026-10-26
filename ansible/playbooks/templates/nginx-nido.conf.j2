@@ -1,0 +1,43 @@
+# {{ ansible_managed }}
+#
+# Nido: solo la API. La web está en GitHub Pages ({{ nido_pages_origin }}/nido/).
+# El WAF y los límites de peticiones de Alpha (conf.d, contexto http) se heredan aquí;
+# la única diferencia es que este dominio no exige X-Alpha-Client
+# (modsecurity_client_token_exempt_hosts en los group_vars de Alpha): un navegador
+# cualquiera es un cliente legítimo, y quien protege los datos es el login.
+
+server {
+    listen 80;
+    server_name {{ nido_domain }};
+
+    location / {
+        modsecurity off;
+        return 301 https://$host$request_uri;
+    }
+}
+{% if nido_cert_ready | default(false) %}
+
+server {
+    listen 443 ssl http2;
+    server_name {{ nido_domain }};
+
+    ssl_certificate     /etc/letsencrypt/live/{{ nido_domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ nido_domain }}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_timeout 1d;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
+
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ nido_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+{% endif %}

@@ -1,0 +1,22 @@
+#!/bin/sh
+# {{ ansible_managed }}
+#
+# Reto DNS-01 para {{ nido_domain }}. Como el de Alpha, pero el TXT se pone en el
+# subdominio de la cuenta (la etiqueta justo antes de .duckdns.org): DuckDNS contesta
+# ese mismo TXT para cualquier nombre por debajo, _acme-challenge.nido.alphaos incluido.
+set -eu
+
+sub="${CERTBOT_DOMAIN%.duckdns.org}"
+sub="${sub##*.}"
+token="$(cat {{ duckdns_dir }}/token)"
+
+# La URL va por stdin (-K -) y no como argumento: así el token no sale en ps.
+resp="$(printf 'url = "https://www.duckdns.org/update?domains=%s&token=%s&txt=%s"\n' \
+  "$sub" "$token" "$CERTBOT_VALIDATION" | curl -fsS --max-time 30 -K -)"
+
+if [ "$resp" != "OK" ]; then
+  echo "DuckDNS ha contestado '$resp' al poner el TXT de $CERTBOT_DOMAIN" >&2
+  exit 1
+fi
+
+sleep {{ duckdns_propagation_seconds }}

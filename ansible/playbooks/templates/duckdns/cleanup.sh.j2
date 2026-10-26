@@ -1,0 +1,10 @@
+#!/bin/sh
+# {{ ansible_managed }}
+set -u
+
+sub="${CERTBOT_DOMAIN%.duckdns.org}"
+sub="${sub##*.}"
+token="$(cat {{ duckdns_dir }}/token)"
+
+printf 'url = "https://www.duckdns.org/update?domains=%s&token=%s&txt=removed&clear=true"\n' \
+  "$sub" "$token" | curl -fsS --max-time 30 -K - >/dev/null || true

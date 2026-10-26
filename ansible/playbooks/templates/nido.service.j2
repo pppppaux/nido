@@ -1,0 +1,39 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Nido API
+After=network.target
+
+[Service]
+User={{ nido_user }}
+WorkingDirectory={{ nido_app_dir }}
+# Solo localhost: nginx es la única puerta (TLS, WAF, límites).
+ExecStart={{ nido_venv }}/bin/uvicorn nido.main:app --host 127.0.0.1 --port {{ nido_port }} --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=5
+# Aislamiento, igual que backend.service de Alpha. Nido no escribe nada en disco: todo
+# va a Neon, así que no hay ReadWritePaths.
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+CacheDirectory=nido
+Environment=HOME=/var/cache/nido XDG_CACHE_HOME=/var/cache/nido
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,212 @@
+---
+# Despliega la API de Nido en la VM de Alpha. Idempotente: vale para la primera vez y para
+# cada despliegue (solo cambia lo que ha cambiado).
+#
+#   cd nido/ansible
+#   ansible-playbook playbooks/nido.yml 2>&1 | cat
+#
+# El inventario, la contraseña del vault y los roles salen de alpha/ansible (ansible.cfg).
+# La web no se despliega aquí: la publica GitHub Actions en Pages (.github/workflows).
+#
+# El código va desde esta carpeta, empaquetado, no por git pull: así la VM no necesita
+# ningún token para este repo.
+- name: Nido
+  hosts: backend
+  become: true
+
+  pre_tasks:
+    - name: Empaquetar el backend
+      delegate_to: localhost
+      become: false
+      run_once: true
+      changed_when: false
+      ansible.builtin.command:
+        cmd: >
+          tar -czf {{ playbook_dir }}/../.nido-backend.tgz
+          --exclude=.venv --exclude=.env --exclude=.env.test --exclude=tests
+          --exclude=__pycache__ --exclude=.pytest_cache
+          -C {{ playbook_dir }}/../../backend .
+
+  roles:
+    # De Alpha. El WAF lleva la excepción de cabecera para nido_domain y los límites
+    # de recursos tienen una entrada para nido.service: los dos se aplican aquí para que
+    # este playbook baste por sí solo.
+    - role: modsecurity
+    - role: resource_limits
+
+  tasks:
+    - name: Usuario del servicio
+      ansible.builtin.user:
+        name: "{{ nido_user }}"
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Directorios
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: "{{ nido_user }}"
+        mode: "0750"
+      loop: ["{{ nido_dir }}", "{{ nido_app_dir }}"]
+
+    # Se borra lo anterior para que un fichero quitado del repo no se quede en la VM.
+    - name: Código anterior fuera
+      ansible.builtin.file:
+        path: "{{ nido_app_dir }}/nido"
+        state: absent
+      changed_when: false
+
+    - name: Código nuevo
+      ansible.builtin.unarchive:
+        src: "{{ playbook_dir }}/../.nido-backend.tgz"
+        dest: "{{ nido_app_dir }}"
+        owner: root
+        group: "{{ nido_user }}"
+        mode: "u=rwX,g=rX,o="
+      changed_when: false
+
+    - name: Huella del código
+      ansible.builtin.shell: find {{ nido_app_dir }}/nido -type f -name '*.py' -o -name '*.sql' | sort | xargs sha256sum | sha256sum
+      register: nido_code_hash
+      changed_when: false
+
+    - name: Huella anterior
+      ansible.builtin.slurp:
+        src: "{{ nido_dir }}/.code-hash"
+      register: nido_old_hash
+      failed_when: false
+
+    - name: Entorno virtual y dependencias
+      ansible.builtin.pip:
+        requirements: "{{ nido_app_dir }}/requirements.txt"
+        virtualenv: "{{ nido_venv }}"
+        virtualenv_command: python3 -m venv
+      register: nido_pip
+
+    # El usuario de Neon es el de Alpha y puede crear bases. Va con la URL directa: CREATE
+    # DATABASE no funciona a través de PgBouncer.
+    - name: Base de datos en Neon
+      ansible.builtin.shell: |
+        set -eu
+        exists=$(psql "$ALPHA_DIRECT_URL" -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ nido_db_name }}'")
+        if [ "$exists" = "1" ]; then echo exists; else psql "$ALPHA_DIRECT_URL" -c 'CREATE DATABASE {{ nido_db_name }}' >/dev/null; echo created; fi
+      environment:
+        ALPHA_DIRECT_URL: "{{ vault_database_direct_url }}"
+      register: nido_db
+      changed_when: nido_db.stdout == 'created'
+      no_log: true
+
+    - name: Fichero .env
+      ansible.builtin.template:
+        src: templates/nido.env.j2
+        dest: "{{ nido_app_dir }}/.env"
+        owner: root
+        group: "{{ nido_user }}"
+        mode: "0640"
+      register: nido_env
+      no_log: true
+
+    - name: Unidad de systemd
+      ansible.builtin.template:
+        src: templates/nido.service.j2
+        dest: "/etc/systemd/system/{{ nido_service_name }}"
+        mode: "0644"
+      register: nido_unit
+
+    - name: Arrancar (o reiniciar si algo ha cambiado)
+      ansible.builtin.systemd_service:
+        name: "{{ nido_service_name }}"
+        enabled: true
+        daemon_reload: "{{ nido_unit.changed }}"
+        state: "{{ 'restarted' if (nido_unit.changed or nido_env.changed or nido_pip.changed
+                   or (nido_old_hash.content | default('') | b64decode) != nido_code_hash.stdout) else 'started' }}"
+
+    - name: Guardar la huella del código desplegado
+      ansible.builtin.copy:
+        content: "{{ nido_code_hash.stdout }}"
+        dest: "{{ nido_dir }}/.code-hash"
+        mode: "0600"
+
+    - name: Esperar a que la API conteste
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ nido_port }}/healthz"
+        return_content: true
+      register: nido_health
+      until: nido_health.status == 200 and nido_health.content == 'ok'
+      retries: 20
+      delay: 2
+
+    # --- HTTPS --------------------------------------------------------------------
+    - name: Directorio de los hooks de DuckDNS de Nido
+      ansible.builtin.file:
+        path: "{{ nido_duckdns_hooks_dir }}"
+        state: directory
+        mode: "0700"
+
+    # El token ya lo deja ahí web_https.yml de Alpha; se vuelve a escribir por si esta
+    # máquina se provisiona en otro orden.
+    - name: Token de DuckDNS
+      ansible.builtin.copy:
+        content: "{{ duckdns_token }}"
+        dest: "{{ duckdns_dir }}/token"
+        mode: "0600"
+      no_log: true
+
+    - name: Hooks de certbot
+      ansible.builtin.template:
+        src: "templates/duckdns/{{ item }}.j2"
+        dest: "{{ nido_duckdns_hooks_dir }}/{{ item }}"
+        mode: "0700"
+      loop: [auth.sh, cleanup.sh]
+
+    - name: ¿Hay certificado?
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ nido_domain }}/fullchain.pem"
+      register: nido_cert
+
+    - name: Pedir el certificado
+      ansible.builtin.command: >
+        certbot certonly --manual --preferred-challenges dns
+        --manual-auth-hook {{ nido_duckdns_hooks_dir }}/auth.sh
+        --manual-cleanup-hook {{ nido_duckdns_hooks_dir }}/cleanup.sh
+        -d {{ nido_domain }}
+        --non-interactive --agree-tos --register-unsafely-without-email
+        --deploy-hook "systemctl reload nginx"
+      when: not nido_cert.stat.exists
+
+    - name: Sitio de nginx
+      ansible.builtin.template:
+        src: templates/nginx-nido.conf.j2
+        dest: /etc/nginx/sites-available/nido
+        mode: "0644"
+      vars:
+        nido_cert_ready: true
+      register: nido_site
+
+    - name: Activar el sitio
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/nido
+        dest: /etc/nginx/sites-enabled/nido
+        state: link
+      register: nido_site_link
+
+    - name: Comprobar nginx
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Recargar nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+      when: nido_site.changed or nido_site_link.changed
+
+  post_tasks:
+    - name: Borrar el paquete local
+      delegate_to: localhost
+      become: false
+      run_once: true
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../.nido-backend.tgz"
+        state: absent

@@ -1,0 +1,166 @@
+@import "tailwindcss";
+/* standard = pesos, ancho y tamaño óptico: los títulos usan los tres. */
+@import "@fontsource-variable/bricolage-grotesque/standard.css";
+
+/* Tema por variables: claro por defecto, oscuro si el sistema lo pide o si se elige a
+   mano (data-theme en <html>, lo pone index.html antes de pintar). */
+:root {
+  --bg: #edf1ee;
+  --surface: #ffffff;
+  --surface-2: #f5f8f6;
+  --ink: #17231f;
+  --muted: #66746e;
+  --faint: #9aa7a1;
+  --line: #d9e0dc;
+  --pine: #1e5b4b;
+  --pine-ink: #ffffff;
+  --pine-soft: #dcebe5;
+  --saffron: #e39b12;
+  --saffron-soft: #fbefd5;
+  --danger: #c8412f;
+  --shadow: 0 1px 0 rgb(23 35 31 / 0.04), 0 8px 24px -12px rgb(23 35 31 / 0.18);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1714;
+    --surface: #17221e;
+    --surface-2: #1c2924;
+    --ink: #e7eeea;
+    --muted: #93a19b;
+    --faint: #63716b;
+    --line: #26332e;
+    --pine: #5cc19d;
+    --pine-ink: #0b1411;
+    --pine-soft: #1d3a31;
+    --saffron: #f4b740;
+    --saffron-soft: #3a2f17;
+    --danger: #f0705e;
+    --shadow: 0 1px 0 rgb(0 0 0 / 0.2), 0 10px 30px -14px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f1714;
+  --surface: #17221e;
+  --surface-2: #1c2924;
+  --ink: #e7eeea;
+  --muted: #93a19b;
+  --faint: #63716b;
+  --line: #26332e;
+  --pine: #5cc19d;
+  --pine-ink: #0b1411;
+  --pine-soft: #1d3a31;
+  --saffron: #f4b740;
+  --saffron-soft: #3a2f17;
+  --danger: #f0705e;
+  --shadow: 0 1px 0 rgb(0 0 0 / 0.2), 0 10px 30px -14px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-paper: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-pine: var(--pine);
+  --color-pine-ink: var(--pine-ink);
+  --color-pine-soft: var(--pine-soft);
+  --color-saffron: var(--saffron);
+  --color-saffron-soft: var(--saffron-soft);
+  --color-danger: var(--danger);
+  --shadow-card: var(--shadow);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+  font-variation-settings: "wdth" 100;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Títulos de pantalla: la parte con carácter. Ancho estrecho y óptico grande. */
+.display {
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 0.95;
+  font-variation-settings: "wdth" 85, "opsz" 96;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--pine);
+    outline-offset: 2px;
+  }
+}
+
+/* En la capa base: sin capa, este color: inherit ganaría a las utilidades de Tailwind
+   (text-paper, text-pine-ink…) y los botones activos se quedaban sin texto. */
+@layer base {
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop {
+  50% {
+    transform: scale(1.18);
+  }
+}
+.anim-sheet {
+  animation: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.anim-fade {
+  animation: fade-in 180ms ease-out;
+}
+.anim-pop {
+  animation: pop 260ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
