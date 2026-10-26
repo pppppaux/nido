@@ -1,5 +1,6 @@
 # Publica la web en GitHub Pages en cada push a master que toque frontend/.
 # La API no se despliega aquí: va a la VM con ansible (ansible/playbooks/nido.yml).
+# Requiere Settings → Pages → Source: GitHub Actions (sin eso falla el paso deploy).
 name: Web en Pages
 
 on:
